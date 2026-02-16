@@ -4,10 +4,20 @@ from aiogram.types import (
     InlineKeyboardButton,
     CallbackQuery
 )
-from aiogram.fsm.context import FSMContext
 
-from states.rent_states import RentWizard
 
+from aiogram.fsm.state import StatesGroup, State
+
+
+class RentWizard(StatesGroup):
+    operation = State()
+    model = State()
+    package = State()
+    days = State()
+    time = State()
+    tank = State()
+    clean = State()
+    equipment = State()
 router = Router()
 
 
