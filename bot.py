@@ -1,13 +1,29 @@
-from aiogram import Router, F
+import asyncio
+import os
+
+from aiogram import Bot, Dispatcher, Router, F
 from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    CallbackQuery
+    CallbackQuery,
+    Message
 )
-
-
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from aiogram.filters import CommandStart
 
+
+# ================= TOKEN =================
+
+TOKEN = os.getenv("BOT_TOKEN")
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+router = Router()
+
+
+# ================= STATES =================
 
 class RentWizard(StatesGroup):
     operation = State()
@@ -18,13 +34,17 @@ class RentWizard(StatesGroup):
     tank = State()
     clean = State()
     equipment = State()
-router = Router()
 
 
 # ================= START =================
 
+@router.message(CommandStart())
+async def cmd_start(message: Message):
+    await message.answer("Нажмите: Создать заявку")
+
+
 @router.message(F.text == "Создать заявку")
-async def start_application(message, state: FSMContext):
+async def start_application(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(RentWizard.operation)
 
@@ -92,7 +112,6 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await state.set_state(RentWizard.days)
 
         days = list(range(1, 21))
-
         rows = [days[i:i+5] for i in range(0, len(days), 5)]
 
         kb = InlineKeyboardMarkup(
@@ -187,7 +206,7 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         )
 
         await callback.message.edit_text(
-            "8️⃣ Комплектность (можно выбрать один пункт, затем нажать Готово):",
+            "8️⃣ Комплектность (можно выбрать несколько, затем нажать Готово):",
             reply_markup=kb
         )
 
@@ -200,7 +219,6 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             current.append(value)
 
         await state.update_data(equipment=current)
-
         await callback.answer("Добавлено")
 
     # -------- ПОДТВЕРЖДЕНИЕ --------
@@ -223,3 +241,19 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await state.clear()
 
     await callback.answer()
+
+
+# ================= REGISTER ROUTER =================
+
+dp.include_router(router)
+
+
+# ================= MAIN =================
+
+async def main():
+    print("BOT STARTED")
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
