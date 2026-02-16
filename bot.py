@@ -38,11 +38,24 @@ class RentWizard(StatesGroup):
 
 # ================= START =================
 
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import CommandStart
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    await message.answer("Нажмите: Создать заявку")
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Создать заявку")]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
 
-
+    await message.answer(
+        "Выберите действие:",
+        reply_markup=kb
+    )
 @router.message(F.text == "Создать заявку")
 async def start_application(message: Message, state: FSMContext):
     await state.clear()
