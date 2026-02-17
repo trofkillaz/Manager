@@ -138,12 +138,14 @@ async def start_application(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("app|"))
 async def application_flow(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()  # ← ОБЯЗАТЕЛЬНО добавить
+    await callback.answer()
 
     try:
         _, step, value = callback.data.split("|")
     except ValueError:
         return
+
+    data = await state.get_data()
 
     if step == "operation":
         await state.update_data(operation=value)
@@ -214,35 +216,21 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         )
 
     elif step == "deposit_payment":
-    await state.update_data(deposit_payment=value)
-    data = await state.get_data()
+        await state.update_data(deposit_payment=value)
+        data = await state.get_data()
 
-    model = data.get("model")
-    days = data.get("days")
+        model = data.get("model")
+        days = data.get("days")
 
-    if not model or not days:
-        await callback.message.answer("Ошибка данных. Начните заново.")
+        if not model or not days:
+            await callback.message.answer("Ошибка. Начните заново.")
+            await state.clear()
+            return
 
-        await state.clear()
-        return
-
-    total = PRICES[model] * int(days)
-        total = PRICES[data.get("model")] * int(data.get("days"))
+        total = PRICES[model] * int(days)
 
         summary = (
-            f"📋 Заявка:\n\n"
-            f"Операция: {data.get('operation')}\n"
-            f"Модель: {data.get('model')}\n"
-            f"Дней: {data.get('days')}\n"
-            f"Время: {data.get('time')}\n"
-            f"Уровень бака: {data.get('tank')}\n"
-            f"Способ оплаты депозита: {data.get('deposit_payment')}\n"
-            f"Сумма: {format_price(total)} VND"
-        )
-
-        save_to_sheets(data)
-        await callback.message.edit_text(summary)
-        await state.clear()
+            f
 
 # ================= FALLBACK =================
 
