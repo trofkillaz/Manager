@@ -1,19 +1,54 @@
 import asyncio
+import logging
 import os
-import requests
 
-from aiogram import Bot, Dispatcher, Router, F
-from aiogram.types import (
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery,
-    Message
-)
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.filters import CommandStart
+from aiogram import Bot, Dispatcher
+from aiohttp import web
 
+TOKEN = os.getenv("BOT_TOKEN")  # токен из Railway variables
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_SECRET = "supersecret"
+WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+
+async def on_startup(app):
+    await bot.set_webhook(
+        WEBHOOK_URL,
+        secret_token=WEBHOOK_SECRET
+    )
+    print("Webhook set:", WEBHOOK_URL)
+
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    await bot.session.close()
+
+
+async def handle(request):
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != WEBHOOK_SECRET:
+        return web.Response(status=403)
+
+    data = await request.json()
+    await dp.feed_webhook_update(bot, data)
+    return web.Response()
+
+
+def main():
+    app = web.Application()
+    app.router.add_post(WEBHOOK_PATH, handle)
+
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    main()
 
 # ================= TOKEN =================
 
