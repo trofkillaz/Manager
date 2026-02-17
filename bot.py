@@ -195,33 +195,33 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 
     # -------- ЧИСТОТА --------
     elif step == "clean":
-        await state.update_data(clean=value)
-        await state.set_state(RentWizard.equipment)
+    await state.update_data(clean=value)
+    await state.set_state(RentWizard.equipment)
 
-        equipment_items = [
-            "1 шлем",
-            "2 шлема",
-            "2 дождевика",
-            "2 плаща",
-            "Салфетка",
-            "Блокиратор",
-            "Багажник",
-            "Подушка"
-        ]
+    equipment_items = [
+        "1 шлем",
+        "2 шлема",
+        "2 дождевика",
+        "2 плаща",
+        "Салфетка",
+        "Блокиратор",
+        "Багажник",
+        "Подушка"
+    ]
 
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=e, callback_data=f"app|equipment|{e}")]
-                for e in equipment_items
-            ] + [[
-                InlineKeyboardButton(text="Готово", callback_data="app|confirm|yes")
-            ]]
-        )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=e, callback_data=f"app|equipment|{e}")]
+            for e in equipment_items
+        ] + [[
+            InlineKeyboardButton(text="Готово", callback_data="app|confirm|yes")
+        ]]
+    )
 
-        await callback.message.edit_text(
-            "8️⃣ Комплектность (можно выбрать несколько, затем нажать Готово):",
-            reply_markup=kb
-        )
+    await callback.message.edit_text(
+        "8️⃣ Комплектность (можно выбрать несколько):",
+        reply_markup=kb
+    )
 
     # -------- КОМПЛЕКТНОСТЬ --------
     elif step == "equipment":
