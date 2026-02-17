@@ -11,8 +11,10 @@ WEBHOOK_SECRET = "supersecret"
 WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
+router = Router()
 
+dp.include_router(router)
 
 async def on_startup(app):
     await bot.set_webhook(
@@ -49,15 +51,6 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     main()
-
-# ================= TOKEN =================
-
-TOKEN = os.getenv("BOT_TOKEN")
-
-bot = Bot(token=TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-router = Router()
-
 
 # ================= PRICES =================
 
