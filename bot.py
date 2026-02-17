@@ -34,6 +34,9 @@ PRICES = {
 }
 
 
+def format_price(value: int) -> str:
+    return f"{value:,}".replace(",", " ")
+
 # ================= STATES =================
 
 class RentWizard(StatesGroup):
