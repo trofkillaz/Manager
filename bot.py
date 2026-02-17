@@ -241,6 +241,11 @@ async def admin_panel(message: Message):
         "Изменение статусов пока через таблицу"
     )
 
+@router.message()
+async def fallback(message: Message):
+    print("Incoming message:", message.text)
+    await message.answer("Я работаю")
+
 # ================= SERVER =================
 
 def main():
