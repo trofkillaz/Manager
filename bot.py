@@ -100,11 +100,12 @@ def save_to_sheets(data: dict):
 class RentWizard(StatesGroup):
     operation = State()
     model = State()
+    package = State()
     days = State()
     time = State()
     tank = State()
-    deposit_payment = State()
-
+    clean = State()
+    equipment = State()
 
 # ================= HANDLERS =================
 
@@ -145,47 +146,81 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
     except ValueError:
         return
 
-    data = await state.get_data()
-
+    # -------- ОПЕРАЦИЯ --------
     if step == "operation":
         await state.update_data(operation=value)
         await state.set_state(RentWizard.model)
 
+        models = [
+            "Honda Lead",
+            "Honda PCX",
+            "Yamaha NVX",
+            "Honda Vision",
+            "Honda Airblade"
+        ]
+
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=m, callback_data=f"app|model|{m}")]
-                for m in PRICES.keys()
+                for m in models
             ]
         )
 
         await callback.message.edit_text("2️⃣ Выберите модель:", reply_markup=kb)
 
+    # -------- МОДЕЛЬ --------
     elif step == "model":
         await state.update_data(model=value)
-        await state.set_state(RentWizard.days)
+        await state.set_state(RentWizard.package)
+
+        packages = [1, 3, 7, 14]
 
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=str(d), callback_data=f"app|days|{d}")]
-                for d in range(1, 21)
+                [InlineKeyboardButton(text=f"{p} дней", callback_data=f"app|package|{p}")]
+                for p in packages
             ]
         )
 
-        await callback.message.edit_text("3️⃣ Выберите количество дней:", reply_markup=kb)
+        await callback.message.edit_text("3️⃣ Выберите пакет:", reply_markup=kb)
 
+    # -------- ПАКЕТ --------
+    elif step == "package":
+        await state.update_data(package=value)
+        await state.set_state(RentWizard.days)
+
+        days = list(range(1, 21))
+        rows = [days[i:i+5] for i in range(0, len(days), 5)]
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text=str(d), callback_data=f"app|days|{d}")
+                    for d in row
+                ]
+                for row in rows
+            ]
+        )
+
+        await callback.message.edit_text("4️⃣ Выберите количество дней:", reply_markup=kb)
+
+    # -------- ДНИ --------
     elif step == "days":
         await state.update_data(days=value)
         await state.set_state(RentWizard.time)
 
+        times = [f"{h}:00" for h in range(9, 21)]
+
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=f"{h}:00", callback_data=f"app|time|{h}:00")]
-                for h in range(9, 21)
+                [InlineKeyboardButton(text=t, callback_data=f"app|time|{t}")]
+                for t in times
             ]
         )
 
-        await callback.message.edit_text("4️⃣ Выберите время:", reply_markup=kb)
+        await callback.message.edit_text("5️⃣ Выберите время:", reply_markup=kb)
 
+    # -------- ВРЕМЯ --------
     elif step == "time":
         await state.update_data(time=value)
         await state.set_state(RentWizard.tank)
@@ -194,53 +229,89 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             inline_keyboard=[
                 [InlineKeyboardButton(text=str(i), callback_data=f"app|tank|{i}")]
                 for i in range(1, 7)
-            ]
+            ] + [[
+                InlineKeyboardButton(text="Полный", callback_data="app|tank|full")
+            ]]
         )
 
-        await callback.message.edit_text("5️⃣ Уровень бака:", reply_markup=kb)
+        await callback.message.edit_text("6️⃣ Уровень бака:", reply_markup=kb)
 
+    # -------- БАК --------
     elif step == "tank":
         await state.update_data(tank=value)
-        await state.set_state(RentWizard.deposit_payment)
+        await state.set_state(RentWizard.clean)
 
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Наличные", callback_data="app|deposit_payment|cash")],
-                [InlineKeyboardButton(text="Перевод", callback_data="app|deposit_payment|transfer")]
+                [
+                    InlineKeyboardButton(text="+", callback_data="app|clean|clean"),
+                    InlineKeyboardButton(text="-", callback_data="app|clean|dirty")
+                ]
             ]
         )
 
+        await callback.message.edit_text("7️⃣ Чистота:", reply_markup=kb)
+
+    # -------- ЧИСТОТА --------
+    elif step == "clean":
+        await state.update_data(clean=value)
+        await state.set_state(RentWizard.equipment)
+
+        equipment_items = [
+            "1 шлем",
+            "2 шлема",
+            "2 дождевика",
+            "2 плаща",
+            "Салфетка",
+            "Блокиратор",
+            "Багажник",
+            "Подушка"
+        ]
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=e, callback_data=f"app|equipment|{e}")]
+                for e in equipment_items
+            ] + [[
+                InlineKeyboardButton(text="Готово", callback_data="app|confirm|yes")
+            ]]
+        )
+
         await callback.message.edit_text(
-            "6️⃣ Способ оплаты депозита:",
+            "8️⃣ Комплектность (можно выбрать несколько):",
             reply_markup=kb
         )
 
-    elif step == "deposit_payment":
-        await state.update_data(deposit_payment=value)
+    # -------- КОМПЛЕКТНОСТЬ --------
+    elif step == "equipment":
         data = await state.get_data()
+        current = data.get("equipment", [])
 
-        model = data.get("model")
-        days = data.get("days")
+        if value not in current:
+            current.append(value)
 
-        if not model or not days:
-            await callback.message.answer("Ошибка. Начните заново.")
-            await state.clear()
-            return
+        await state.update_data(equipment=current)
+        await callback.answer("Добавлено")
 
-        total = PRICES[model] * int(days)
+    # -------- ПОДТВЕРЖДЕНИЕ --------
+    elif step == "confirm":
+        data = await state.get_data()
 
         summary = (
             f"📋 Заявка:\n\n"
             f"Операция: {data.get('operation')}\n"
-            f"Модель: {model}\n"
-            f"Дней: {days}\n"
+            f"Модель: {data.get('model')}\n"
+            f"Пакет: {data.get('package')} дней\n"
+            f"Дней: {data.get('days')}\n"
             f"Время: {data.get('time')}\n"
-            f"Уровень бака: {data.get('tank')}\n"
-            f"Способ оплаты депозита: {data.get('deposit_payment')}\n"
-            f"Сумма: {format_price(total)} VND"
+            f"Бак: {data.get('tank')}\n"
+            f"Чистота: {data.get('clean')}\n"
+            f"Комплектность: {', '.join(data.get('equipment', []))}"
         )
 
-        save_to_sheets({**data, "total": total})
+        # если нужно сохранять
+        save_to_sheets(data)
+
         await callback.message.edit_text(summary)
         await state.clear()
 
