@@ -1,11 +1,9 @@
-import asyncio
 import logging
 import os
 import requests
 
-from aiogram import Bot, Dispatcher, Router, F
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
+from aiogram import Bot, Dispatcher, Router, F
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -15,30 +13,24 @@ from aiogram.types import (
     KeyboardButton,
     Update
 )
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from aiogram.filters import CommandStart
+
+
+# ================= CONFIG =================
 
 TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("BOT_TOKEN not set")
+
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_SECRET = "supersecret"
-async def on_startup(app):
-    domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-    webhook_url = f"https://{domain}{WEBHOOK_PATH}"
-
-    print("Setting webhook to:", webhook_url)
-
-    await bot.set_webhook(
-        webhook_url,
-        secret_token=WEBHOOK_SECRET
-    )
-
-    info = await bot.get_webhook_info()
-    print("Webhook info:", info)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
-
 dp.include_router(router)
 
 
@@ -46,9 +38,13 @@ dp.include_router(router)
 
 async def on_startup(app):
     domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-    webhook_url = f"https://{domain}{WEBHOOK_PATH}"
+    if not domain:
+        raise ValueError("RAILWAY_PUBLIC_DOMAIN not set")
 
+    webhook_url = f"https://{domain}{WEBHOOK_PATH}"
     print("Setting webhook to:", webhook_url)
+
+    await bot.delete_webhook(drop_pending_updates=True)
 
     await bot.set_webhook(
         webhook_url,
@@ -57,6 +53,7 @@ async def on_startup(app):
 
     info = await bot.get_webhook_info()
     print("Webhook info:", info)
+
 
 async def on_shutdown(app):
     await bot.delete_webhook()
@@ -68,9 +65,10 @@ async def handle(request):
         return web.Response(status=403)
 
     data = await request.json()
-
     update = Update.model_validate(data)
-    await dp.feed_update(bot, update)
+
+    # ВАЖНО — для webhook используем feed_webhook_update
+    await dp.feed_webhook_update(bot, update)
 
     return web.Response()
 
@@ -82,9 +80,11 @@ def main():
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
 
-    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
-
-
+    web.run_app(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8080))
+    )
 
 
 # ================= PRICES =================
@@ -107,7 +107,7 @@ GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbiDTYbJSAS_99UTuw
 
 def save_to_sheets(data: dict):
     try:
-        requests.post(GOOGLE_SCRIPT_URL, json=data)
+        requests.post(GOOGLE_SCRIPT_URL, json=data, timeout=5)
     except Exception as e:
         print("Google Sheets error:", e)
 
@@ -129,8 +129,6 @@ class RentWizard(StatesGroup):
 
 
 # ================= START =================
-
-from aiogram.filters import CommandStart
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -219,12 +217,14 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await state.update_data(deposit_payment=value)
         data = await state.get_data()
 
+        total = PRICES[data.get('model')] * int(data.get('days'))
+
         summary = (
             f"📋 Заявка:\n\n"
             f"Операция: {data.get('operation')}\n"
             f"Модель: {data.get('model')}\n"
             f"Дней: {data.get('days')}\n"
-            f"Сумма: {format_price(PRICES[data.get('model')] * int(data.get('days')))} VND"
+            f"Сумма: {format_price(total)} VND"
         )
 
         save_to_sheets(data)
@@ -233,9 +233,15 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await state.clear()
 
 
+# ================= FALLBACK =================
+
 @router.message()
-async def test_handler(message: Message):
+async def fallback(message: Message):
     await message.answer("Я работаю")
+
+
+# ================= RUN =================
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     main()
