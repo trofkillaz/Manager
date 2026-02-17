@@ -225,45 +225,43 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 
     # -------- КОМПЛЕКТНОСТЬ --------
     elif step == "equipment":
-    data = await state.get_data()
-    selected = data.get("equipment", [])
+        data = await state.get_data()
+        selected = data.get("equipment", [])
 
-    # toggle логика
-    if value in selected:
-        selected.remove(value)
-    else:
-        selected.append(value)
+        if value in selected:
+            selected.remove(value)
+        else:
+            selected.append(value)
 
-    await state.update_data(equipment=selected)
+        await state.update_data(equipment=selected)
 
-    equipment_items = [
-        "1 шлем",
-        "2 шлема",
-        "2 дождевика",
-        "2 плаща",
-        "Салфетка",
-        "Блокиратор",
-        "Багажник",
-        "Подушка"
-    ]
+        equipment_items = [
+            "1 шлем",
+            "2 шлема",
+            "2 дождевика",
+            "2 плаща",
+            "Салфетка",
+            "Блокиратор",
+            "Багажник",
+            "Подушка"
+        ]
 
-    # пересобираем клавиатуру с галочками
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"✅ {e}" if e in selected else e,
-                    callback_data=f"app|equipment|{e}"
-                )
-            ]
-            for e in equipment_items
-        ] + [[
-            InlineKeyboardButton(text="Готово", callback_data="app|confirm|yes")
-        ]]
-    )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=f"✅ {e}" if e in selected else e,
+                        callback_data=f"app|equipment|{e}"
+                    )
+                ]
+                for e in equipment_items
+            ] + [[
+                InlineKeyboardButton(text="Готово", callback_data="app|confirm|yes")
+            ]]
+        )
 
-    await callback.message.edit_reply_markup(reply_markup=kb)
-    await callback.answer()
+        await callback.message.edit_reply_markup(reply_markup=kb)
+        await callback.answer()
 
     # -------- ПОДТВЕРЖДЕНИЕ --------
     elif step == "confirm":
