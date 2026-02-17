@@ -214,9 +214,19 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         )
 
     elif step == "deposit_payment":
-        await state.update_data(deposit_payment=value)
-        data = await state.get_data()
+    await state.update_data(deposit_payment=value)
+    data = await state.get_data()
 
+    model = data.get("model")
+    days = data.get("days")
+
+    if not model or not days:
+        await callback.message.answer("Ошибка данных. Начните заново.")
+
+        await state.clear()
+        return
+
+    total = PRICES[model] * int(days)
         total = PRICES[data.get("model")] * int(data.get("days"))
 
         summary = (
