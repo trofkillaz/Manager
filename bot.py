@@ -417,12 +417,3 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(summary)
         await state.clear()
 
-# ================= MAIN =================
-
-async def main():
-    print("BOT STARTED")
-    await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
