@@ -6,6 +6,16 @@ import requests
 from aiogram import Bot, Dispatcher, Router
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton
+)
+from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+from aiogram import F
 
 TOKEN = os.getenv("BOT_TOKEN")  # токен из Railway variables
 WEBHOOK_PATH = "/webhook"
@@ -23,7 +33,8 @@ async def on_startup(app):
         WEBHOOK_URL,
         secret_token=WEBHOOK_SECRET
     )
-    print("Webhook set:", WEBHOOK_URL)
+    info = await bot.get_webhook_info()
+print("Webhook info:", info)
 
 
 async def on_shutdown(app):
