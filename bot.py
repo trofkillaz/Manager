@@ -1,42 +1,240 @@
 import logging
-from aiogram import Bot, Dispatcher, types
+import os
+import requests
+
+from aiohttp import web
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    Update,
+)
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import ParseMode
-from aiogram.utils import executor
-import aiohttp
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.filters import CommandStart
 
-API_TOKEN = 'YOUR_API_TOKEN'
-WEBHOOK_URL = 'https://<your_domain>/<your_webhook_path>'
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# ================= CONFIG =================
 
-# Initialize bot and dispatcher
-bot = Bot(token=API_TOKEN)
+TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("BOT_TOKEN not set")
+
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = "https://manager-production-17b0.up.railway.app/webhook"
+
+
+# ================= INIT =================
+
+bot = Bot(token=TOKEN)
 storage = MemoryStorage()
-dispatcher = Dispatcher(bot, storage=storage)
+dp = Dispatcher(storage=storage)
+router = Router()
+dp.include_router(router)
 
-async def on_startup(dp):
-    # Set the webhook
+
+# ================= WEBHOOK =================
+
+async def on_startup(app: web.Application):
+    print("🚀 Starting bot...")
+    print(f"Setting webhook to: {WEBHOOK_URL}")
+
+    await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
-    logging.info('Webhook set successfully')
 
-@dispatcher.message_handler(commands=['start'])
-async def cmd_start(message: types.Message):
-    await message.reply('Welcome!')
+    info = await bot.get_webhook_info()
+    print("✅ Webhook set successfully!")
+    print(info)
 
-@dispatcher.message_handler(commands=['help'])
-async def cmd_help(message: types.Message):
-    await message.reply('This is a help message!')
 
-@dispatcher.errors_handler()
-async def error_handler(update, exception):
-    logging.error(f'Update: {update} caused error: {exception}')
-
-async def on_shutdown(dp):
-    # Remove webhook (you may want to enable long polling instead)
+async def on_shutdown(app: web.Application):
+    print("🛑 Shutting down bot...")
     await bot.delete_webhook()
-    logging.info('Webhook removed')
+    await bot.session.close()
+    print("✅ Bot shutdown complete")
 
-if __name__ == '__main__':
-    executor.start_webhook(dispatcher, webhook_path='/<your_webhook_path>', on_startup=on_startup, on_shutdown=on_shutdown)
+
+async def handle(request: web.Request):
+    try:
+        data = await request.json()
+        update = Update.model_validate(data)
+        await dp.feed_webhook_update(bot, update)
+    except Exception as e:
+        print("❌ Error processing update:", e)
+
+    return web.Response()
+
+
+# ================= PRICES =================
+
+PRICES = {
+    "Honda Lead": 200000,
+    "Honda PCX": 250000,
+    "Yamaha NVX": 250000,
+    "Honda Vision": 180000,
+    "Honda Airblade": 220000,
+}
+
+
+def format_price(value: int) -> str:
+    return f"{value:,}".replace(",", " ")
+
+
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbiDTYbJSAS_99UTuw-MIJjt3G7t2sDHXYnhqmIme0aSFEJJQGQ5-cz1MKhcq6I7Ou5Q/exec"
+
+
+def save_to_sheets(data: dict):
+    try:
+        requests.post(GOOGLE_SCRIPT_URL, json=data, timeout=5)
+    except Exception as e:
+        print("Google Sheets error:", e)
+
+
+# ================= STATES =================
+
+class RentWizard(StatesGroup):
+    operation = State()
+    model = State()
+    days = State()
+    time = State()
+    tank = State()
+    deposit_payment = State()
+
+
+# ================= HANDLERS =================
+
+@router.message(CommandStart())
+async def cmd_start(message: Message):
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Создать заявку")]],
+        resize_keyboard=True,
+    )
+    await message.answer("Выберите действие:", reply_markup=kb)
+
+
+@router.message(F.text == "Создать заявку")
+async def start_application(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(RentWizard.operation)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Приход", callback_data="app|operation|income"),
+                InlineKeyboardButton(text="Расход", callback_data="app|operation|expense"),
+            ]
+        ]
+    )
+
+    await message.answer("1️⃣ Выберите операцию:", reply_markup=kb)
+
+
+# ================= CALLBACK FLOW =================
+
+@router.callback_query(F.data.startswith("app|"))
+async def application_flow(callback: CallbackQuery, state: FSMContext):
+    _, step, value = callback.data.split("|")
+
+    if step == "operation":
+        await state.update_data(operation=value)
+        await state.set_state(RentWizard.model)
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=m, callback_data=f"app|model|{m}")]
+                for m in PRICES.keys()
+            ]
+        )
+
+        await callback.message.edit_text("2️⃣ Выберите модель:", reply_markup=kb)
+
+    elif step == "model":
+        await state.update_data(model=value)
+        await state.set_state(RentWizard.days)
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=str(d), callback_data=f"app|days|{d}")]
+                for d in range(1, 21)
+            ]
+        )
+
+        await callback.message.edit_text("3️⃣ Выберите количество дней:", reply_markup=kb)
+
+    elif step == "days":
+        await state.update_data(days=value)
+        await state.set_state(RentWizard.time)
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=f"{h}:00", callback_data=f"app|time|{h}:00")]
+                for h in range(9, 21)
+            ]
+        )
+
+        await callback.message.edit_text("4️⃣ Выберите время:", reply_markup=kb)
+
+    elif step == "time":
+        await state.update_data(time=value)
+        await state.set_state(RentWizard.tank)
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=str(i), callback_data=f"app|tank|{i}")]
+                for i in range(1, 7)
+            ]
+        )
+
+        await callback.message.edit_text("5️⃣ Уровень бака:", reply_markup=kb)
+
+    elif step == "deposit_payment":
+        await state.update_data(deposit_payment=value)
+        data = await state.get_data()
+
+        total = PRICES[data.get("model")] * int(data.get("days"))
+
+        summary = (
+            f"📋 Заявка:\n\n"
+            f"Операция: {data.get('operation')}\n"
+            f"Модель: {data.get('model')}\n"
+            f"Дней: {data.get('days')}\n"
+            f"Сумма: {format_price(total)} VND"
+        )
+
+        save_to_sheets(data)
+        await callback.message.edit_text(summary)
+        await state.clear()
+
+
+# ================= FALLBACK =================
+
+@router.message()
+async def fallback(message: Message):
+    await message.answer("Я работаю")
+
+
+# ================= SERVER =================
+
+def main():
+    app = web.Application()
+
+    app.router.add_post(WEBHOOK_PATH, handle)
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    port = int(os.getenv("PORT", 8080))
+
+    print(f"🌐 Starting aiohttp server on port {port}...")
+    web.run_app(app, host="0.0.0.0", port=port)
+
+
+# ================= ENTRY POINT =================
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    main()
