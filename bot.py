@@ -138,7 +138,12 @@ async def start_application(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("app|"))
 async def application_flow(callback: CallbackQuery, state: FSMContext):
-    _, step, value = callback.data.split("|")
+    await callback.answer()  # ← ОБЯЗАТЕЛЬНО добавить
+
+    try:
+        _, step, value = callback.data.split("|")
+    except ValueError:
+        return
 
     if step == "operation":
         await state.update_data(operation=value)
