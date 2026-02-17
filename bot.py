@@ -16,7 +16,7 @@ from aiogram.types import (
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 
 
 # ================= CONFIG =================
@@ -24,11 +24,6 @@ from aiogram.filters import CommandStart, Command
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("BOT_TOKEN not set")
-
-ADMIN_ID = os.getenv("ADMIN_ID")
-if not ADMIN_ID:
-    raise ValueError("ADMIN_ID not set")
-ADMIN_ID = int(ADMIN_ID)
 
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = "https://manager-production-17b0.up.railway.app/webhook"
@@ -111,7 +106,7 @@ class RentWizard(StatesGroup):
     deposit_payment = State()
 
 
-# ================= START =================
+# ================= HANDLERS =================
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -143,8 +138,6 @@ async def start_application(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("app|"))
 async def application_flow(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-
     _, step, value = callback.data.split("|")
 
     if step == "operation":
@@ -219,34 +212,22 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await state.update_data(deposit_payment=value)
         data = await state.get_data()
 
-        total = PRICES[data["model"]] * int(data["days"])
-        data["total"] = total
+        total = PRICES[data.get("model")] * int(data.get("days"))
 
         summary = (
             f"📋 Заявка:\n\n"
-            f"Операция: {data['operation']}\n"
-            f"Модель: {data['model']}\n"
-            f"Дней: {data['days']}\n"
-            f"Время: {data['time']}\n"
-            f"Уровень бака: {data['tank']}\n"
-            f"Способ оплаты депозита: {data['deposit_payment']}\n"
+            f"Операция: {data.get('operation')}\n"
+            f"Модель: {data.get('model')}\n"
+            f"Дней: {data.get('days')}\n"
+            f"Время: {data.get('time')}\n"
+            f"Уровень бака: {data.get('tank')}\n"
+            f"Способ оплаты депозита: {data.get('deposit_payment')}\n"
             f"Сумма: {format_price(total)} VND"
         )
 
         save_to_sheets(data)
         await callback.message.edit_text(summary)
         await state.clear()
-
-
-# ================= ADMIN =================
-
-@router.message(Command("admin"))
-async def admin_panel(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    await message.answer("Админ панель активна ✅")
-
 
 # ================= FALLBACK =================
 
@@ -265,6 +246,7 @@ def main():
     app.on_shutdown.append(on_shutdown)
 
     port = int(os.getenv("PORT", 8080))
+
     print(f"🌐 Starting aiohttp server on port {port}...")
     web.run_app(app, host="0.0.0.0", port=port)
 
