@@ -85,9 +85,6 @@ def main():
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    main()
 
 
 # ================= PRICES =================
@@ -239,3 +236,6 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 @router.message()
 async def test_handler(message: Message):
     await message.answer("Я работаю")
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    main()
