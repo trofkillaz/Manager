@@ -1,5 +1,6 @@
 import asyncio
 import os
+import requests
 
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.types import (
@@ -36,6 +37,27 @@ PRICES = {
 
 def format_price(value: int) -> str:
     return f"{value:,}".replace(",", " ")
+
+def save_to_sheets(data: dict):
+    try:
+        requests.post(GOOGLE_SCRIPT_URL, json={
+            "operation": data.get("operation"),
+            "model": data.get("model"),
+            "days": data.get("days"),
+            "time": data.get("time"),
+            "tank": data.get("tank"),
+            "clean": data.get("clean"),
+            "equipment": ", ".join(data.get("equipment", [])),
+            "total_price": data.get("total_price"),
+            "payment": data.get("payment"),
+            "deposit": data.get("deposit"),
+            "currency": data.get("currency"),
+            "deposit_payment": data.get("deposit_payment"),
+        })
+    except Exception as e:
+        print("Google Sheets error:", e)
+
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbiDTYbJSAS_99UTuw-MIJjt3G7t2sDHXYnhqmIme0aSFEJJQGQ5-cz1MKhcq6I7Ou5Q/exec"
 
 # ================= STATES =================
 
@@ -275,10 +297,10 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         ])
 
         await callback.message.edit_text(
-            f"💰 Сумма к оплате: {total_price}\n\n"
-            f"Пожалуйста примите оплату:",
-            reply_markup=kb
-        )
+    f"💰 Сумма к оплате: {format_price(total_price)} VND\n\n"
+    f"Пожалуйста примите оплату:",
+    reply_markup=kb
+)
 
     # -------- ОПЛАТА --------
     elif step == "payment":
@@ -353,12 +375,12 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             f"Бак: {data.get('tank')}\n"
             f"Чистота: {data.get('clean')}\n"
             f"Комплектность: {', '.join(data.get('equipment', []))}\n\n"
-            f"Сумма: {data.get('total_price')}\n"
+            f"Сумма: {format_price(data.get('total_price'))} VND\n"
             f"Оплата: {data.get('payment')}\n"
             f"Залог: {data.get('deposit')} ({data.get('currency')})\n"
             f"Форма залога: {data.get('deposit_payment')}"
         )
-
+save_to_sheets(data)
         await callback.message.edit_text(summary)
         await state.clear()
 
