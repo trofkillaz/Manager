@@ -120,7 +120,7 @@ class RentWizard(StatesGroup):
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 
-@router.message(CommandStart())
+@router.message(F.text == "/start")
 async def cmd_start(message: Message):
     kb = ReplyKeyboardMarkup(
         keyboard=[
