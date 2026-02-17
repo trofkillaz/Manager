@@ -34,8 +34,7 @@ async def on_startup(app):
         secret_token=WEBHOOK_SECRET
     )
     info = await bot.get_webhook_info()
-print("Webhook info:", info)
-
+    print("Webhook info:", info)
 
 async def on_shutdown(app):
     await bot.delete_webhook()
