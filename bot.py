@@ -16,8 +16,7 @@ from aiogram.types import (
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.filters import CommandStart
-
+from aiogram.filters import CommandStart, Command
 
 # ================= CONFIG =================
 
@@ -27,7 +26,7 @@ if not TOKEN:
 
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = "https://manager-production-17b0.up.railway.app/webhook"
-
+TOKEN = os.getenv("BOT_TOKEN")
 
 # ================= INIT =================
 
@@ -231,10 +230,16 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 
 # ================= FALLBACK =================
 
-@router.message()
-async def fallback(message: Message):
-    await message.answer("Я работаю")
+@router.message(Command("admin"))
+async def admin_panel(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
 
+    await message.answer(
+        "Админ панель\n\n"
+        "Просмотр заявок — через Google Sheets\n"
+        "Изменение статусов пока через таблицу"
+    )
 
 # ================= SERVER =================
 
