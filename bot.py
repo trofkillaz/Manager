@@ -192,31 +192,21 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 
         await callback.message.edit_text("5️⃣ Уровень бака:", reply_markup=kb)
 
-elif step == "tank":
-    await state.update_data(tank=value)
-    await state.set_state(RentWizard.deposit_payment)
+    elif step == "tank":
+        await state.update_data(tank=value)
+        await state.set_state(RentWizard.deposit_payment)
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="Наличные",
-                    callback_data="app|deposit_payment|cash"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="Перевод",
-                    callback_data="app|deposit_payment|transfer"
-                )
-            ],
-        ]
-    )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Наличные", callback_data="app|deposit_payment|cash")],
+                [InlineKeyboardButton(text="Перевод", callback_data="app|deposit_payment|transfer")]
+            ]
+        )
 
-    await callback.message.edit_text(
-        "6️⃣ Способ оплаты депозита:",
-        reply_markup=kb
-    )
+        await callback.message.edit_text(
+            "6️⃣ Способ оплаты депозита:",
+            reply_markup=kb
+        )
 
     elif step == "deposit_payment":
         await state.update_data(deposit_payment=value)
@@ -229,13 +219,15 @@ elif step == "tank":
             f"Операция: {data.get('operation')}\n"
             f"Модель: {data.get('model')}\n"
             f"Дней: {data.get('days')}\n"
+            f"Время: {data.get('time')}\n"
+            f"Уровень бака: {data.get('tank')}\n"
+            f"Способ оплаты депозита: {data.get('deposit_payment')}\n"
             f"Сумма: {format_price(total)} VND"
         )
 
         save_to_sheets(data)
         await callback.message.edit_text(summary)
         await state.clear()
-
 
 # ================= FALLBACK =================
 
