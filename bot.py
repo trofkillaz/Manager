@@ -192,6 +192,32 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 
         await callback.message.edit_text("5️⃣ Уровень бака:", reply_markup=kb)
 
+elif step == "tank":
+    await state.update_data(tank=value)
+    await state.set_state(RentWizard.deposit_payment)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Наличные",
+                    callback_data="app|deposit_payment|cash"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Перевод",
+                    callback_data="app|deposit_payment|transfer"
+                )
+            ],
+        ]
+    )
+
+    await callback.message.edit_text(
+        "6️⃣ Способ оплаты депозита:",
+        reply_markup=kb
+    )
+
     elif step == "deposit_payment":
         await state.update_data(deposit_payment=value)
         data = await state.get_data()
