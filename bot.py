@@ -27,12 +27,35 @@ if not TOKEN:
 
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_SECRET = "supersecret"
+WEBHOOK_URL = "https://manager-production-17b0.up.railway.app/webhook"
 
-bot = Bot(token=TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-router = Router()
-dp.include_router(router)
 
+async def on_startup(app):
+    print("Setting webhook to:", WEBHOOK_URL)
+    await bot.set_webhook(
+        WEBHOOK_URL,
+        secret_token=WEBHOOK_SECRET
+    )
+
+    info = await bot.get_webhook_info()
+    print("Webhook info:", info)
+
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    await bot.session.close()
+
+
+async def handle(request):
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != WEBHOOK_SECRET:
+        return web.Response(status=403)
+
+    data = await request.json()
+    update = Update.model_validate(data)
+
+    await dp.feed_webhook_update(bot, update)
+
+    return web.Response()
 
 # ================= WEBHOOK =================
 
