@@ -230,7 +230,19 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         total = PRICES[model] * int(days)
 
         summary = (
-            f
+            f"📋 Заявка:\n\n"
+            f"Операция: {data.get('operation')}\n"
+            f"Модель: {model}\n"
+            f"Дней: {days}\n"
+            f"Время: {data.get('time')}\n"
+            f"Уровень бака: {data.get('tank')}\n"
+            f"Способ оплаты депозита: {data.get('deposit_payment')}\n"
+            f"Сумма: {format_price(total)} VND"
+        )
+
+        save_to_sheets({**data, "total": total})
+        await callback.message.edit_text(summary)
+        await state.clear()
 
 # ================= FALLBACK =================
 
