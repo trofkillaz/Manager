@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import os
+import requests
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, Router
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
 TOKEN = os.getenv("BOT_TOKEN")  # токен из Railway variables
