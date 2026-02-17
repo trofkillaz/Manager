@@ -26,88 +26,71 @@ if not TOKEN:
     raise ValueError("BOT_TOKEN not set")
 
 WEBHOOK_PATH = "/webhook"
-WEBHOOK_SECRET = "supersecret"
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "supersecret")
 WEBHOOK_URL = "https://manager-production-17b0.up.railway.app/webhook"
 
+# Initialize bot and dispatcher
+bot = Bot(token=TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+router = Router()
+dp.include_router(router)
+
+
+# ================= WEBHOOK HANDLERS =================
 
 async def on_startup(app):
-    print("Setting webhook to:", WEBHOOK_URL)
-    await bot.set_webhook(
-        WEBHOOK_URL,
-        secret_token=WEBHOOK_SECRET
-    )
-
-    info = await bot.get_webhook_info()
-    print("Webhook info:", info)
+    """Setup webhook on startup"""
+    print(f"🚀 Starting bot...")
+    print(f"Setting webhook to: {WEBHOOK_URL}")
+    
+    try:
+        # Delete old webhook to avoid conflicts
+        await bot.delete_webhook(drop_pending_updates=True)
+        
+        # Set new webhook
+        await bot.set_webhook(
+            WEBHOOK_URL,
+            secret_token=WEBHOOK_SECRET
+        )
+        
+        # Verify webhook
+        info = await bot.get_webhook_info()
+        print(f"✅ Webhook set successfully!")
+        print(f"Webhook info: {info}")
+    except Exception as e:
+        print(f"❌ Error setting webhook: {e}")
+        raise
 
 
 async def on_shutdown(app):
-    await bot.delete_webhook()
-    await bot.session.close()
+    """Cleanup on shutdown"""
+    print("🛑 Shutting down bot...")
+    try:
+        await bot.delete_webhook()
+        await bot.session.close()
+        print("✅ Bot shutdown complete")
+    except Exception as e:
+        print(f"❌ Error during shutdown: {e}")
 
 
 async def handle(request):
+    """Handle incoming webhook updates"""
+    # Verify secret token
     if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != WEBHOOK_SECRET:
+        print("❌ Invalid webhook secret token")
         return web.Response(status=403)
-
-    data = await request.json()
-    update = Update.model_validate(data)
-
-    await dp.feed_webhook_update(bot, update)
-
+    
+    try:
+        data = await request.json()
+        update = Update.model_validate(data)
+        
+        # Process update using aiogram 3 webhook method
+        await dp.feed_webhook_update(bot, update)
+    except Exception as e:
+        print(f"❌ Error processing update: {e}")
+    
     return web.Response()
-
-# ================= WEBHOOK =================
-
-async def on_startup(app):
-    webhook_url = "https://manager-production-17b0.up.railway.app/webhook"
-    if not domain:
-        raise ValueError("RAILWAY_PUBLIC_DOMAIN not set")
-
-    webhook_url = f"https://{domain}{WEBHOOK_PATH}"
-    print("Setting webhook to:", webhook_url)
-
-    await bot.delete_webhook(drop_pending_updates=True)
-
-    await bot.set_webhook(
-        webhook_url,
-        secret_token=WEBHOOK_SECRET
-    )
-
-    info = await bot.get_webhook_info()
-    print("Webhook info:", info)
-
-
-async def on_shutdown(app):
-    await bot.delete_webhook()
-    await bot.session.close()
-
-
-async def handle(request):
-    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != WEBHOOK_SECRET:
-        return web.Response(status=403)
-
-    data = await request.json()
-    update = Update.model_validate(data)
-
-    # ВАЖНО — для webhook используем feed_webhook_update
-    await dp.feed_webhook_update(bot, update)
-
-    return web.Response()
-
-
-def main():
-    app = web.Application()
-    app.router.add_post(WEBHOOK_PATH, handle)
-
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-
-    web.run_app(
-        app,
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8080))
-    )
 
 
 # ================= PRICES =================
@@ -126,7 +109,6 @@ def format_price(value: int) -> str:
 
 
 GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbiDTYbJSAS_99UTuw-MIJjt3G7t2sDHXYnhqmIme0aSFEJJQGQ5-cz1MKhcq6I7Ou5Q/exec"
-
 
 def save_to_sheets(data: dict):
     try:
@@ -151,7 +133,7 @@ class RentWizard(StatesGroup):
     deposit_payment = State()
 
 
-# ================= START =================
+# ================= HANDLERS =================
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -159,7 +141,7 @@ async def cmd_start(message: Message):
         keyboard=[[KeyboardButton(text="Создать заявку")]],
         resize_keyboard=True
     )
-
+    
     await message.answer("Выберите действие:", reply_markup=kb)
 
 
@@ -167,14 +149,14 @@ async def cmd_start(message: Message):
 async def start_application(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(RentWizard.operation)
-
+    
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="Приход", callback_data="app|operation|income"),
             InlineKeyboardButton(text="Расход", callback_data="app|operation|expense"),
         ]
     ])
-
+    
     await message.answer("1️⃣ Выберите операцию:", reply_markup=kb)
 
 
@@ -183,65 +165,65 @@ async def start_application(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("app|"))
 async def application_flow(callback: CallbackQuery, state: FSMContext):
     _, step, value = callback.data.split("|")
-
+    
     if step == "operation":
         await state.update_data(operation=value)
         await state.set_state(RentWizard.model)
-
+        
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=m, callback_data=f"app|model|{m}")]
                 for m in PRICES.keys()
             ]
         )
-
+        
         await callback.message.edit_text("2️⃣ Выберите модель:", reply_markup=kb)
-
+    
     elif step == "model":
         await state.update_data(model=value)
         await state.set_state(RentWizard.days)
-
+        
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=str(d), callback_data=f"app|days|{d}")]
                 for d in range(1, 21)
             ]
         )
-
+        
         await callback.message.edit_text("3️⃣ Выберите количество дней:", reply_markup=kb)
-
+    
     elif step == "days":
         await state.update_data(days=value)
         await state.set_state(RentWizard.time)
-
+        
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=f"{h}:00", callback_data=f"app|time|{h}:00")]
                 for h in range(9, 21)
             ]
         )
-
+        
         await callback.message.edit_text("4️⃣ Выберите время:", reply_markup=kb)
-
+    
     elif step == "time":
         await state.update_data(time=value)
         await state.set_state(RentWizard.tank)
-
+        
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=str(i), callback_data=f"app|tank|{i}")]
                 for i in range(1, 7)
             ]
         )
-
+        
         await callback.message.edit_text("5️⃣ Уровень бака:", reply_markup=kb)
-
+    
     elif step == "deposit_payment":
         await state.update_data(deposit_payment=value)
         data = await state.get_data()
-
+        
         total = PRICES[data.get('model')] * int(data.get('days'))
-
+        
         summary = (
             f"📋 Заявка:\n\n"
             f"Операция: {data.get('operation')}\n"
@@ -249,9 +231,9 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             f"Дней: {data.get('days')}\n"
             f"Сумма: {format_price(total)} VND"
         )
-
+        
         save_to_sheets(data)
-
+        
         await callback.message.edit_text(summary)
         await state.clear()
 
@@ -263,8 +245,37 @@ async def fallback(message: Message):
     await message.answer("Я работаю")
 
 
-# ================= RUN =================
+# ================= SERVER SETUP =================
+
+def main():
+    """Setup and run aiohttp web application"""
+    app = web.Application()
+    
+    # Add webhook handler
+    app.router.add_post(WEBHOOK_PATH, handle)
+    
+    # Setup startup and shutdown handlers
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+    
+    # Get port from environment
+    port = int(os.getenv("PORT", 8080))
+    
+    print(f"🌐 Starting aiohttp server on port {port}...")
+    
+    # Run app
+    web.run_app(
+        app,
+        host="0.0.0.0",
+        port=port
+    )
+
+
+# ================= ENTRY POINT =================
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     main()
