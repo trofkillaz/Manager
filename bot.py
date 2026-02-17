@@ -427,3 +427,6 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(summary)
         await state.clear()
 
+@router.message()
+async def test_handler(message: Message):
+    await message.answer("Я работаю")
