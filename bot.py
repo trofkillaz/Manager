@@ -21,7 +21,19 @@ from aiogram.fsm.state import StatesGroup, State
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_SECRET = "supersecret"
-WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
+async def on_startup(app):
+    domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    webhook_url = f"https://{domain}{WEBHOOK_PATH}"
+
+    print("Setting webhook to:", webhook_url)
+
+    await bot.set_webhook(
+        webhook_url,
+        secret_token=WEBHOOK_SECRET
+    )
+
+    info = await bot.get_webhook_info()
+    print("Webhook info:", info)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
