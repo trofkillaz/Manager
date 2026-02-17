@@ -37,7 +37,7 @@ dp.include_router(router)
 # ================= WEBHOOK =================
 
 async def on_startup(app):
-    domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    webhook_url = "https://manager-production-17b0.up.railway.app/webhook"
     if not domain:
         raise ValueError("RAILWAY_PUBLIC_DOMAIN not set")
 
