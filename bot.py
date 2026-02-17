@@ -18,7 +18,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters import CommandStart
 
-================= CONFIG =================
+# ================= CONFIG =================
 
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
