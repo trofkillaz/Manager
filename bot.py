@@ -171,22 +171,6 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
     # -------- МОДЕЛЬ --------
     elif step == "model":
         await state.update_data(model=value)
-        await state.set_state(RentWizard.package)
-
-        packages = [1, 3, 7, 14]
-
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=f"{p} дней", callback_data=f"app|package|{p}")]
-                for p in packages
-            ]
-        )
-
-        await callback.message.edit_text("3️⃣ Выберите пакет:", reply_markup=kb)
-
-    # -------- ПАКЕТ --------
-    elif step == "package":
-        await state.update_data(package=value)
         await state.set_state(RentWizard.days)
 
         days = list(range(1, 21))
@@ -202,7 +186,7 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             ]
         )
 
-        await callback.message.edit_text("4️⃣ Выберите количество дней:", reply_markup=kb)
+        await callback.message.edit_text("3️⃣ Выберите количество дней:", reply_markup=kb)
 
     # -------- ДНИ --------
     elif step == "days":
@@ -218,7 +202,7 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             ]
         )
 
-        await callback.message.edit_text("5️⃣ Выберите время:", reply_markup=kb)
+        await callback.message.edit_text("4️⃣ Выберите время:", reply_markup=kb)
 
     # -------- ВРЕМЯ --------
     elif step == "time":
@@ -234,7 +218,7 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             ]]
         )
 
-        await callback.message.edit_text("6️⃣ Уровень бака:", reply_markup=kb)
+        await callback.message.edit_text("5️⃣ Уровень бака:", reply_markup=kb)
 
     # -------- БАК --------
     elif step == "tank":
@@ -250,12 +234,13 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             ]
         )
 
-        await callback.message.edit_text("7️⃣ Чистота:", reply_markup=kb)
+        await callback.message.edit_text("6️⃣ Чистота:", reply_markup=kb)
 
     # -------- ЧИСТОТА --------
     elif step == "clean":
         await state.update_data(clean=value)
         await state.set_state(RentWizard.equipment)
+        await state.update_data(equipment=[])
 
         equipment_items = [
             "1 шлем",
@@ -278,30 +263,57 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
         )
 
         await callback.message.edit_text(
-            "8️⃣ Комплектность (можно выбрать несколько):",
+            "7️⃣ Комплектность:",
             reply_markup=kb
         )
 
-    # -------- КОМПЛЕКТНОСТЬ --------
+    # -------- КОМПЛЕКТНОСТЬ С ГАЛОЧКАМИ --------
     elif step == "equipment":
         data = await state.get_data()
         current = data.get("equipment", [])
 
-        if value not in current:
+        if value in current:
+            current.remove(value)
+        else:
             current.append(value)
 
         await state.update_data(equipment=current)
-        await callback.answer("Добавлено")
+
+        equipment_items = [
+            "1 шлем",
+            "2 шлема",
+            "2 дождевика",
+            "2 плаща",
+            "Салфетка",
+            "Блокиратор",
+            "Багажник",
+            "Подушка"
+        ]
+
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=("✅ " if e in current else "") + e,
+                        callback_data=f"app|equipment|{e}"
+                    )
+                ]
+                for e in equipment_items
+            ] + [[
+                InlineKeyboardButton(text="Готово", callback_data="app|confirm|yes")
+            ]]
+        )
+
+        await callback.message.edit_text("7️⃣ Комплектность:", reply_markup=kb)
 
     # -------- ПОДТВЕРЖДЕНИЕ --------
     elif step == "confirm":
         data = await state.get_data()
 
         summary = (
-            f"📋 Заявка:\n\n"
+            f"📋 Проверьте заявку:\n\n"
             f"Операция: {data.get('operation')}\n"
             f"Модель: {data.get('model')}\n"
-            f"Пакет: {data.get('package')} дней\n"
             f"Дней: {data.get('days')}\n"
             f"Время: {data.get('time')}\n"
             f"Бак: {data.get('tank')}\n"
@@ -309,10 +321,26 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
             f"Комплектность: {', '.join(data.get('equipment', []))}"
         )
 
-        # если нужно сохранять
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Отправить", callback_data="app|send|yes"),
+                InlineKeyboardButton(text="❌ Отмена", callback_data="app|cancel|no")
+            ]
+        ])
+
+        await callback.message.edit_text(summary, reply_markup=kb)
+
+    # -------- ОТПРАВКА --------
+    elif step == "send":
+        data = await state.get_data()
         save_to_sheets(data)
 
-        await callback.message.edit_text(summary)
+        await callback.message.edit_text("✅ Заявка отправлена в таблицу.")
+        await state.clear()
+
+    # -------- ОТМЕНА --------
+    elif step == "cancel":
+        await callback.message.edit_text("❌ Создание заявки отменено.")
         await state.clear()
 
 # ================= FALLBACK =================
