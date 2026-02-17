@@ -45,13 +45,18 @@ dp.include_router(router)
 # ================= WEBHOOK =================
 
 async def on_startup(app):
+    domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    webhook_url = f"https://{domain}{WEBHOOK_PATH}"
+
+    print("Setting webhook to:", webhook_url)
+
     await bot.set_webhook(
-        WEBHOOK_URL,
+        webhook_url,
         secret_token=WEBHOOK_SECRET
     )
+
     info = await bot.get_webhook_info()
     print("Webhook info:", info)
-
 
 async def on_shutdown(app):
     await bot.delete_webhook()
