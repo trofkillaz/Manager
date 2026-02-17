@@ -362,30 +362,29 @@ async def application_flow(callback: CallbackQuery, state: FSMContext):
 
     # -------- ФИНАЛ --------
     elif step == "deposit_payment":
-        await state.update_data(deposit_payment=value)
+    await state.update_data(deposit_payment=value)
 
-        data = await state.get_data()
+    data = await state.get_data()
 
-        summary = (
-            f"📋 Заявка:\n\n"
-            f"Операция: {data.get('operation')}\n"
-            f"Модель: {data.get('model')}\n"
-            f"Количество дней: {data.get('days')}\n"
-            f"Время: {data.get('time')}\n"
-            f"Бак: {data.get('tank')}\n"
-            f"Чистота: {data.get('clean')}\n"
-            f"Комплектность: {', '.join(data.get('equipment', []))}\n\n"
-            f"Сумма: {format_price(data.get('total_price'))} VND\n"
-            f"Оплата: {data.get('payment')}\n"
-            f"Залог: {data.get('deposit')} ({data.get('currency')})\n"
-            f"Форма залога: {data.get('deposit_payment')}"
-        )
-save_to_sheets(data)
-        await callback.message.edit_text(summary)
-        await state.clear()
+    summary = (
+        f"📋 Заявка:\n\n"
+        f"Операция: {data.get('operation')}\n"
+        f"Модель: {data.get('model')}\n"
+        f"Количество дней: {data.get('days')}\n"
+        f"Время: {data.get('time')}\n"
+        f"Бак: {data.get('tank')}\n"
+        f"Чистота: {data.get('clean')}\n"
+        f"Комплектность: {', '.join(data.get('equipment', []))}\n\n"
+        f"Сумма: {format_price(data.get('total_price'))} VND\n"
+        f"Оплата: {data.get('payment')}\n"
+        f"Залог: {data.get('deposit')} ({data.get('currency')})\n"
+        f"Форма залога: {data.get('deposit_payment')}"
+    )
 
-    await callback.answer()
+    save_to_sheets(data)
 
+    await callback.message.edit_text(summary)
+    await state.clear()
 
 # ================= REGISTER ROUTER =================
 
