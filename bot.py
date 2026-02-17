@@ -116,7 +116,9 @@ class RentWizard(StatesGroup):
 
 # ================= START =================
 
-@router.message(F.text == "/start")
+from aiogram.filters import CommandStart
+
+@router.message(CommandStart())
 async def cmd_start(message: Message):
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="Создать заявку")]],
